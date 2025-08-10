@@ -1,4 +1,4 @@
-# DNS Bench (PowerShell)
+# DNS Bench
 
 ![Version](https://img.shields.io/badge/version-1.4-blue.svg) ![License](https://img.shields.io/badge/license-GNU%20GPL%20v3-green.svg)
 
