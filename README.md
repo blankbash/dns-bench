@@ -32,7 +32,7 @@ The script outputs results sorted by lowest average time and saves them to both 
 ## Installation
 Clone the repository:
 ```powershell
-git clone https://github.com/<your-username>/dns-bench.git
+git clone https://github.com/blankbash/dns-bench.git
 cd dns-bench
 ```
 
@@ -77,5 +77,5 @@ Google 1       8.8.8.8     80      15.22  14.88     23.14  12.75  29.34
 ---
 
 ## Author
-**Erik Lopes de Oliveira** (Blankbash)  
+Blankbash 
 License: **GNU GPL v3**
