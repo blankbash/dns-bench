@@ -1,4 +1,4 @@
-# DNS Bench (PowerShell)
+# DNS Bench (PowerShell) ![Version](https://img.shields.io/badge/version-1.3-blue.svg) ![License](https://img.shields.io/badge/license-GNU%20GPL%20v3-green.svg)
 
 ## Overview
 `dns-bench.ps1` is a PowerShell script for benchmarking DNS servers.  
@@ -10,11 +10,12 @@ The script outputs results sorted by lowest average time and saves them to both 
 
 ## Features
 - Reads DNS server list from an **external JSON** file.
+- Reads domain list from an **external JSON** file.
 - Displays **progress bar** per server and per query.
 - Results sorted by **lowest Avg_ms**.
 - Appends results to `_dns-bench-result.txt` with timestamp.
 - Saves **TOP 5** fastest servers to `_dns-t5.json`.
-- Supports **multiple server lists** (just switch the JSON file).
+- Supports **multiple server/domain lists** (just switch the JSON files).
 - Compatible with **Windows PowerShell 5.1+** and **PowerShell 7+**.
 
 ---
@@ -49,13 +50,29 @@ Example `servers.json`:
 ]
 ```
 
-### 2. Run the benchmark
+### 2. Create a JSON domain list
+Example `domains.json`:
+```json
+[
+  "microsoft.com",
+  "apple.com",
+  "cloudflare.com",
+  "google.com",
+  "amazon.com",
+  "netflix.com",
+  "spotify.com",
+  "wikipedia.org"
+]
+```
+
+### 3. Run the benchmark
 ```powershell
-.\dns-bench.ps1 -ServersFile servers.json -Runs 10
+.\dns-bench.ps1 -ServersFile servers.json -DomainsFile domains.json -Runs 10
 ```
 
 **Parameters**:
 - `-ServersFile` / `-f`: Path to the JSON file with DNS servers (default: `servers.json`).
+- `-DomainsFile` / `-n`: Path to the JSON file with domains to test (default: `domains.json`).
 - `-Runs` / `-r`: Number of repetitions per domain/server (default: `10`).
 
 ---
@@ -78,5 +95,3 @@ Google 1       8.8.8.8     80      15.22  14.88     23.14  12.75  29.34
 
 ## Author
 Blankbash
-
-License: **GNU GPL v3**

@@ -1,7 +1,7 @@
 <#
 ===============================================================================
  dns-bench.PS1
- Version: 1.2
+ Version: 1.3
  License: GNU GPL v3
 -------------------------------------------------------------------------------
 Description:
@@ -29,13 +29,22 @@ Usage:
        { "Name": "Cloudflare 1", "IP": "1.1.1.1" }
      ]
 
-  2. Run:
-     powershell.exe -ExecutionPolicy Bypass -File .\dns-bench.ps1 -ServersFile servers.json -Runs 10
+  2. Create a JSON file with the list of domains:
+     [
+       "microsoft.com",
+       "google.com",
+       "cloudflare.com"
+     ]
+
+  3. Run:
+     powershell.exe -ExecutionPolicy Bypass -File .\dns-bench.ps1 -ServersFile servers.json -DomainsFile domains.json -Runs 10
 
 Parameters:
-  -ServersFile  Path to the JSON file containing the DNS servers.
+  -ServersFile   Path to the JSON file containing the DNS servers.
     -Alias -f
-  -Runs         Number of repetitions per domain/server (default: 10).
+  -DomainsFile   Path to the JSON file containing the domains to test.
+    -Alias -n
+  -Runs          Number of repetitions per domain/server (default: 10).
     -Alias -r
 
 Output:
@@ -52,7 +61,9 @@ param(
   [Alias("f")]
   [string]$ServersFile = "servers.json",
   [Alias("r")]
-  [int]$Runs = 10
+  [int]$Runs = 10,
+  [Alias("n")]
+  [string]$DomainsFile = "domains.json"
 )
 
 $host.privatedata.ProgressForegroundColor = "Black"
@@ -61,29 +72,31 @@ $host.privatedata.ProgressBackgroundColor = "DarkMagenta"
 # 0) Clear local DNS cache
 ipconfig /flushdns | Out-Null
 
-# 1) Target domains
-$names = @(
-  "microsoft.com","apple.com","cloudflare.com",
-  "google.com","amazon.com","netflix.com","spotify.com","wikipedia.org"
-)
-
-# 2) Utilities
+# 1) Utilities
 function Import-Servers {
   param([string]$Path)
-  if (-not (Test-Path -Path $Path)) {
-    throw "Server list file not found: ${Path}"
-  }
-  try {
-    $data = Get-Content -Raw -Path $Path | ConvertFrom-Json
-  } catch {
-    throw "Failed to read/parse JSON in ${Path}: $($_.Exception.Message)"
-  }
-  if (-not $data -or $data.Count -eq 0) {
-    throw "No servers found in ${Path}"
-  }
+  if (-not (Test-Path -Path $Path)) { throw "Server list file not found: ${Path}" }
+  try { $data = Get-Content -Raw -Path $Path | ConvertFrom-Json }
+  catch { throw "Failed to read/parse JSON in ${Path}: $($_.Exception.Message)" }
+  if (-not $data -or $data.Count -eq 0) { throw "No servers found in ${Path}" }
   foreach ($s in $data) {
     if (-not $s.IP -or -not $s.Name) {
       throw "Invalid entry (requires {Name, IP}). Example: {`"Name`":`"Cloudflare 1`",`"IP`":`"1.1.1.1`"}"
+    }
+  }
+  return $data
+}
+
+function Import-Domains {
+  param([string]$Path)
+  if (-not (Test-Path -Path $Path)) { throw "Domain list file not found: ${Path}" }
+  try { $data = Get-Content -Raw -Path $Path | ConvertFrom-Json }
+  catch { throw "Failed to read/parse JSON in ${Path}: $($_.Exception.Message)" }
+  if (-not $data -or $data.Count -eq 0) { throw "No domains found in ${Path}" }
+  # validate all entries are non-empty strings
+  foreach ($d in $data) {
+    if (-not ($d -is [string]) -or [string]::IsNullOrWhiteSpace($d)) {
+      throw "Invalid domain entry. Expect array of strings. Example: [`"microsoft.com`", `"google.com`"]"
     }
   }
   return $data
@@ -116,13 +129,8 @@ function Test-DNSRTT {
         -PercentComplete $pctInner
 
       $t = [System.Diagnostics.Stopwatch]::StartNew()
-      try {
-        Resolve-DnsName -Server $Server -Type A -NoHostsFile -DnsOnly -Name $n -ErrorAction Stop | Out-Null
-      } catch {
-        # error counts as a sample with elapsed time
-      } finally {
-        $t.Stop()
-        $results += $t.Elapsed.TotalMilliseconds
+      try { Resolve-DnsName -Server $Server -Type A -NoHostsFile -DnsOnly -Name $n -ErrorAction Stop | Out-Null } catch { } finally {
+        $t.Stop(); $results += $t.Elapsed.TotalMilliseconds
       }
     }
     Start-Sleep -Milliseconds 50
@@ -143,8 +151,9 @@ function Test-DNSRTT {
   }
 }
 
-# 3) Load servers (external JSON file)
+# 3) Load servers and domains
 $servers = Import-Servers -Path $ServersFile
+$names   = Import-Domains -Path $DomainsFile
 
 # 4) Run benchmark (sequential, with progress)
 $summary = @()
@@ -158,14 +167,9 @@ $sorted = $summary | Sort-Object Avg_ms
 # 5) Output TXT (append history)
 $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
 $outPathTxt = Join-Path (Get-Location) "_dns-bench-result.txt"
-
-if (-not (Test-Path -Path $outPathTxt)) {
-  New-Item -ItemType File -Path $outPathTxt -Force | Out-Null
-}
-
-$headerLine = "---- DNS Bench Result - ${timestamp} (Servers file: ${ServersFile}) ----"
+if (-not (Test-Path -Path $outPathTxt)) { New-Item -ItemType File -Path $outPathTxt -Force | Out-Null }
+$headerLine = "---- DNS Bench Result - ${timestamp} (Servers: ${ServersFile} | Domains: ${DomainsFile}) ----"
 $table = $sorted | Format-Table Name,Server,Samples,Avg_ms,Median_ms,P95_ms,Min_ms,Max_ms -Auto | Out-String
-
 Add-Content -Path $outPathTxt -Encoding UTF8 -Value $headerLine
 Add-Content -Path $outPathTxt -Encoding UTF8 -Value $table
 Add-Content -Path $outPathTxt -Encoding UTF8 -Value ""
@@ -174,7 +178,6 @@ Add-Content -Path $outPathTxt -Encoding UTF8 -Value ""
 $top5 = $sorted | Select-Object -First 5 `
   @{ Name = 'Name'; Expression = { $_.Name } }, `
   @{ Name = 'IP';   Expression = { $_.Server } }
-
 $outPathJson = Join-Path (Get-Location) "_dns-t5.json"
 $top5 | ConvertTo-Json -Depth 3 | Set-Content -Path $outPathJson -Encoding UTF8
 
