@@ -51,7 +51,7 @@ Example `servers.json`:
 
 ### 2. Run the benchmark
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\dns-bench.ps1 -ServersFile servers.json -Runs 10
+.\dns-bench.ps1 -ServersFile servers.json -Runs 10
 ```
 
 **Parameters**:
@@ -77,5 +77,6 @@ Google 1       8.8.8.8     80      15.22  14.88     23.14  12.75  29.34
 ---
 
 ## Author
-Blankbash 
+Blankbash
+
 License: **GNU GPL v3**
